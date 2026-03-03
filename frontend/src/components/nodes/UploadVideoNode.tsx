@@ -124,8 +124,19 @@ function UploadVideoNodeComponent({ id, data }: NodeProps) {
   }, [id, updateNodeData, setNodeOutput, setNodeExecutionStatus, uppy]);
 
   return (
-    <BaseNode id={id} title="Upload Video" icon={<Video className="h-4 w-4" />}>
-      <div className="space-y-3">
+    <>
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="video-output"
+        isConnectable={true}
+      />
+      <BaseNode
+        id={id}
+        title="Upload Video"
+        icon={<Video className="h-4 w-4" />}
+      >
+        <div className="space-y-3">
         {nodeData.videoUrl ? (
           <div className="relative">
             <video
@@ -175,16 +186,8 @@ function UploadVideoNodeComponent({ id, data }: NodeProps) {
           </div>
         )}
       </div>
-
-      {/* Output Handle */}
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="video-output"
-        className="!bg-primary"
-        isConnectable={true}
-      />
-    </BaseNode>
+      </BaseNode>
+    </>
   );
 }
 

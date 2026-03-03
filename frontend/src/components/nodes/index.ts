@@ -48,7 +48,7 @@ export const nodeDefinitions: NodeDefinition[] = [
     description: "Execute Gemini AI with prompts and images",
     defaultData: {
       label: "Run LLM",
-      model: "gemini-1.5-flash",
+      model: "gemini-2.0-flash",
       systemPrompt: "",
       userMessage: "",
       response: null,

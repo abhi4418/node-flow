@@ -24,10 +24,10 @@ export interface RunLLMNodeData {
 }
 
 const GEMINI_MODELS = [
-  { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash" },
-  { value: "gemini-1.5-flash-8b", label: "Gemini 1.5 Flash 8B" },
-  { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
-  { value: "gemini-2.0-flash-exp", label: "Gemini 2.0 Flash (Exp)" },
+  { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
+  { value: "gemini-2.0-flash-lite", label: "Gemini 2.0 Flash Lite" },
+  { value: "gemini-2.0-pro", label: "Gemini 2.0 Pro" },
+  { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
 ];
 
 function RunLLMNodeComponent({ id, data }: NodeProps) {
@@ -105,12 +105,12 @@ function RunLLMNodeComponent({ id, data }: NodeProps) {
         throw new Error("Please provide a message or connect inputs");
       }
 
-      // Call backend API
-      const response = await fetch("http://localhost:3001/api/tasks/llm", {
+      // Call direct LLM API
+      const response = await fetch("http://localhost:3001/api/llm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: nodeData.model || "gemini-1.5-flash",
+          model: nodeData.model || "gemini-2.0-flash",
           systemPrompt: nodeData.systemPrompt,
           userMessage: combinedMessage,
           imageUrls: imageInputs,
@@ -119,39 +119,15 @@ function RunLLMNodeComponent({ id, data }: NodeProps) {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || "Failed to trigger LLM task");
+        throw new Error(error.error || "Failed to call LLM");
       }
 
-      const { taskId } = await response.json();
-
-      // Poll for result
-      let attempts = 0;
-      const maxAttempts = 60; // 60 seconds max
+      const data = await response.json();
+      const result = data.response;
       
-      while (attempts < maxAttempts) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        
-        const statusResponse = await fetch(
-          `http://localhost:3001/api/tasks/${taskId}/status`
-        );
-        const statusData = await statusResponse.json();
-
-        if (statusData.status === "COMPLETED") {
-          const result = statusData.output?.response || statusData.output;
-          updateNodeData(id, { response: result });
-          setNodeOutput(id, result);
-          setNodeExecutionStatus(id, "success");
-          return;
-        }
-
-        if (statusData.status === "FAILED" || statusData.status === "CANCELED") {
-          throw new Error(statusData.error?.message || "Task failed");
-        }
-
-        attempts++;
-      }
-
-      throw new Error("Task timed out");
+      updateNodeData(id, { response: result });
+      setNodeOutput(id, result);
+      setNodeExecutionStatus(id, "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       setNodeError(id, message);
@@ -171,15 +147,13 @@ function RunLLMNodeComponent({ id, data }: NodeProps) {
   const isRunning = status === "running";
 
   return (
-    <BaseNode id={id} title="Run LLM" icon={<Bot className="h-4 w-4" />}>
-      {/* Input Handles */}
+    <>
       <Handle
         type="target"
         position={Position.Left}
         id="system-prompt"
         style={{ top: "30%" }}
         isConnectable={true}
-        className="!bg-orange-500"
       />
       <Handle
         type="target"
@@ -187,7 +161,6 @@ function RunLLMNodeComponent({ id, data }: NodeProps) {
         id="user-message"
         style={{ top: "50%" }}
         isConnectable={true}
-        className="!bg-blue-500"
       />
       <Handle
         type="target"
@@ -195,15 +168,24 @@ function RunLLMNodeComponent({ id, data }: NodeProps) {
         id="images"
         style={{ top: "70%" }}
         isConnectable={true}
-        className="!bg-green-500"
       />
-
-      <div className="space-y-3">
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="response-output"
+        isConnectable={true}
+      />
+      <BaseNode
+        id={id}
+        title="Run LLM"
+        icon={<Bot className="h-4 w-4" />}
+      >
+        <div className="space-y-3">
         {/* Model Selection */}
         <div className="space-y-1">
           <Label>Model</Label>
           <Select
-            value={nodeData.model || "gemini-1.5-flash"}
+            value={nodeData.model || "gemini-2.0-flash"}
             onValueChange={handleModelChange}
             disabled={isRunning}
           >
@@ -311,16 +293,8 @@ function RunLLMNodeComponent({ id, data }: NodeProps) {
           </div>
         )}
       </div>
-
-      {/* Output Handle */}
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="response-output"
-        isConnectable={true}
-        className="!bg-primary"
-      />
-    </BaseNode>
+      </BaseNode>
+    </>
   );
 }
 

@@ -124,8 +124,19 @@ function UploadImageNodeComponent({ id, data }: NodeProps) {
   }, [id, updateNodeData, setNodeOutput, setNodeExecutionStatus, uppy]);
 
   return (
-    <BaseNode id={id} title="Upload Image" icon={<ImageIcon className="h-4 w-4" />}>
-      <div className="space-y-3">
+    <>
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="image-output"
+        isConnectable={true}
+      />
+      <BaseNode
+        id={id}
+        title="Upload Image"
+        icon={<ImageIcon className="h-4 w-4" />}
+      >
+        <div className="space-y-3">
         {nodeData.imageUrl ? (
           <div className="relative">
             <img
@@ -175,16 +186,8 @@ function UploadImageNodeComponent({ id, data }: NodeProps) {
           </div>
         )}
       </div>
-
-      {/* Output Handle */}
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="image-output"
-        className="!bg-primary"
-        isConnectable={true}
-      />
-    </BaseNode>
+      </BaseNode>
+    </>
   );
 }
 

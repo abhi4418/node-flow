@@ -26,27 +26,26 @@ function TextNodeComponent({ id, data }: NodeProps) {
   );
 
   return (
-    <BaseNode id={id} title="Text" icon={<Type className="h-4 w-4" />}>
-      <div className="space-y-2">
-        <Label htmlFor={`text-${id}`}>Text Content</Label>
-        <Textarea
-          id={`text-${id}`}
-          placeholder="Enter your text here..."
-          value={nodeData.text || ""}
-          onChange={handleTextChange}
-          className="min-h-[100px] resize-y nodrag"
-        />
-      </div>
-      
-      {/* Output Handle */}
+    <>
       <Handle
         type="source"
         position={Position.Right}
         id="text-output"
         isConnectable={true}
-        className="!bg-primary"
       />
-    </BaseNode>
+      <BaseNode id={id} title="Text" icon={<Type className="h-4 w-4" />}>
+        <div className="space-y-2">
+          <Label htmlFor={`text-${id}`}>Text Content</Label>
+          <Textarea
+            id={`text-${id}`}
+            placeholder="Enter your text here..."
+            value={nodeData.text || ""}
+            onChange={handleTextChange}
+            className="min-h-[100px] resize-y nodrag"
+          />
+        </div>
+      </BaseNode>
+    </>
   );
 }
 

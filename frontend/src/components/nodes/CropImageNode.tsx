@@ -24,11 +24,13 @@ function CropImageNodeComponent({ id, data }: NodeProps) {
   const setNodeError = useFlowStore((state) => state.setNodeError);
   const clearNodeError = useFlowStore((state) => state.clearNodeError);
   const getConnectedInputs = useFlowStore((state) => state.getConnectedInputs);
+  const nodeOutputs = useFlowStore((state) => state.nodeOutputs);
+  const edges = useFlowStore((state) => state.edges);
   const status = useFlowStore((state) => state.nodeExecutionStatus[id]) || "idle";
 
   const [inputImageUrl, setInputImageUrl] = useState<string | null>(null);
 
-  // Update input image from connected nodes
+  // Update input image from connected nodes (re-runs when edges or outputs change)
   useEffect(() => {
     const inputs = getConnectedInputs(id);
     const imageInput = inputs.find(
@@ -37,7 +39,7 @@ function CropImageNodeComponent({ id, data }: NodeProps) {
         (input.data.startsWith("http") || input.data.startsWith("data:image"))
     );
     setInputImageUrl(imageInput?.data as string | null);
-  }, [id, getConnectedInputs]);
+  }, [id, getConnectedInputs, nodeOutputs, edges]);
 
   const handleParamChange = useCallback(
     (param: "x" | "y" | "width" | "height", value: string) => {
@@ -139,17 +141,25 @@ function CropImageNodeComponent({ id, data }: NodeProps) {
   const isRunning = status === "running";
 
   return (
-    <BaseNode id={id} title="Crop Image" icon={<Crop className="h-4 w-4" />}>
-      {/* Input Handle */}
+    <>
       <Handle
         type="target"
         position={Position.Left}
         id="image-input"
-        className="!bg-green-500"
         isConnectable={true}
       />
-
-      <div className="space-y-3">
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="image-output"
+        isConnectable={true}
+      />
+      <BaseNode
+        id={id}
+        title="Crop Image"
+        icon={<Crop className="h-4 w-4" />}
+      >
+        <div className="space-y-3">
         {/* Input Preview */}
         {inputImageUrl && (
           <div className="space-y-1">
@@ -259,16 +269,8 @@ function CropImageNodeComponent({ id, data }: NodeProps) {
           </div>
         )}
       </div>
-
-      {/* Output Handle */}
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="image-output"
-        className="!bg-primary"
-        isConnectable={true}
-      />
-    </BaseNode>
+      </BaseNode>
+    </>
   );
 }
 

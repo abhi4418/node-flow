@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { tasks } from "@trigger.dev/sdk/v3";
+import { tasks, runs } from "@trigger.dev/sdk/v3";
 import type { runGeminiLLM } from "../trigger/llm.js";
 import type { cropImage } from "../trigger/ffmpeg-crop.js";
 import type { extractVideoFrame } from "../trigger/ffmpeg-frame.js";
@@ -17,7 +17,7 @@ router.post("/llm", async (req: Request, res: Response) => {
     }
 
     const handle = await tasks.trigger<typeof runGeminiLLM>("run-gemini-llm", {
-      model: model || "gemini-1.5-flash",
+      model: model || "gemini-2.0-flash",
       systemPrompt,
       userMessage,
       imageUrls: imageUrls || [],
@@ -92,7 +92,7 @@ router.get("/:taskId/status", async (req: Request, res: Response) => {
   try {
     const { taskId } = req.params;
     
-    const run = await tasks.retrieve(taskId);
+    const run = await runs.retrieve(taskId);
     
     res.json({
       id: run.id,
