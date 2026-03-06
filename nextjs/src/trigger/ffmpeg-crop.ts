@@ -1,12 +1,9 @@
 import { task } from "@trigger.dev/sdk/v3";
-import { exec } from "child_process";
-import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
 import crypto from "crypto";
-
-const execAsync = promisify(exec);
+import { downloadToFile, getFfmpegBinary, getFfprobeBinary, runCommand } from "./utils";
 
 interface CropInput {
   imageUrl: string;
@@ -24,6 +21,9 @@ interface CropOutput {
 
 export const cropImage = task({
   id: "crop-image",
+  queue: {
+    concurrencyLimit: 2, // ffmpeg work is CPU-heavy in local dev and times out under high fan-out
+  },
   // some large/long videos can easily take more than a minute to process,
   // so bump the timeout well past the 60s default.  The global config also
   // sets a high limit, but we explicitly override here to be safe.
@@ -35,57 +35,71 @@ export const cropImage = task({
     await fs.mkdir(tempDir, { recursive: true });
 
     const inputPath = path.join(tempDir, "input");
-    const outputPath = path.join(tempDir, "output.png");
+    // JPEG is significantly faster to encode than PNG for crop results
+    const outputPath = path.join(tempDir, "output.jpg");
 
     try {
-      const response = await fetch(imageUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to download image: ${response.statusText}`);
-      }
+      await downloadToFile(imageUrl, inputPath);
 
-      const arrayBuffer = await response.arrayBuffer();
-      await fs.writeFile(inputPath, Buffer.from(arrayBuffer));
-
-      const { stdout: probeOutput } = await execAsync(
-        `ffprobe -v quiet -print_format json -show_streams "${inputPath}"`,
-        // give ffprobe a few minutes in case it's probing a very large video
-        { timeout: 300_000 }
-      );
-
-      const probeData = JSON.parse(probeOutput);
-      const videoStream = probeData.streams.find(
-        (s: { codec_type: string }) => s.codec_type === "video"
-      );
-
-      if (!videoStream) {
-        throw new Error("Could not determine image dimensions");
-      }
-
-      const originalWidth = videoStream.width;
-      const originalHeight = videoStream.height;
-
-      const cropX = Math.round((x / 100) * originalWidth);
-      const cropY = Math.round((y / 100) * originalHeight);
-      const cropWidth = Math.round((width / 100) * originalWidth);
-      const cropHeight = Math.round((height / 100) * originalHeight);
-
-      if (cropX + cropWidth > originalWidth || cropY + cropHeight > originalHeight) {
-        throw new Error("Crop dimensions exceed image bounds");
-      }
-
-      if (cropWidth <= 0 || cropHeight <= 0) {
+      // Use ffmpeg's built-in iw/ih expressions so we skip a separate ffprobe
+      // pass on the (potentially large) input file entirely.
+      if (width <= 0 || height <= 0) {
         throw new Error("Crop dimensions must be positive");
       }
 
-      await execAsync(
-        `ffmpeg -i "${inputPath}" -vf "crop=${cropWidth}:${cropHeight}:${cropX}:${cropY}" -y "${outputPath}"`,
-        // allow the ffmpeg process plenty of time to finish
-        { timeout: 300_000 }
+      const wFrac = width / 100;
+      const hFrac = height / 100;
+      const xFrac = x / 100;
+      const yFrac = y / 100;
+
+      // Single ffmpeg call: crop using input-relative expressions + JPEG output
+      await runCommand(
+        getFfmpegBinary(),
+        [
+          "-i",
+          inputPath,
+          "-vf",
+          `crop=iw*${wFrac}:ih*${hFrac}:iw*${xFrac}:ih*${yFrac}`,
+          "-frames:v",
+          "1",
+          "-q:v",
+          "2",
+          "-y",
+          outputPath,
+        ],
+        { timeoutMs: 300_000 }
       );
+
+      // Probe only the small output file (already cropped) for exact pixel dims
+      const { stdout: probeOutput } = await runCommand(
+        getFfprobeBinary(),
+        [
+          "-v",
+          "quiet",
+          "-print_format",
+          "json",
+          "-show_streams",
+          "-select_streams",
+          "v:0",
+          outputPath,
+        ],
+        { timeoutMs: 30_000 }
+      );
+
+      const croppedStream = JSON.parse(probeOutput).streams[0];
+      if (!croppedStream) {
+        throw new Error("Could not determine output dimensions");
+      }
+
+      const cropWidth = croppedStream.width as number;
+      const cropHeight = croppedStream.height as number;
+      // Back-compute original dimensions from the known crop fractions
+      const originalWidth = Math.round(cropWidth / wFrac);
+      const originalHeight = Math.round(cropHeight / hFrac);
 
       const outputBuffer = await fs.readFile(outputPath);
       const base64 = outputBuffer.toString("base64");
-      const dataUrl = `data:image/png;base64,${base64}`;
+      const dataUrl = `data:image/jpeg;base64,${base64}`;
 
       return {
         resultUrl: dataUrl,

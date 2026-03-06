@@ -1,12 +1,9 @@
 import { task } from "@trigger.dev/sdk/v3";
-import { exec } from "child_process";
-import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
 import crypto from "crypto";
-
-const execAsync = promisify(exec);
+import { downloadToFile, getFfmpegBinary, getFfprobeBinary, runCommand } from "./utils";
 
 interface ExtractFrameInput {
   videoUrl: string;
@@ -34,16 +31,12 @@ export const extractVideoFrame = task({
     const outputPath = path.join(tempDir, "frame.png");
 
     try {
-      const response = await fetch(videoUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to download video: ${response.statusText}`);
-      }
+      await downloadToFile(videoUrl, inputPath);
 
-      const arrayBuffer = await response.arrayBuffer();
-      await fs.writeFile(inputPath, Buffer.from(arrayBuffer));
-
-      const { stdout: probeOutput } = await execAsync(
-        `ffprobe -v quiet -print_format json -show_format -show_streams "${inputPath}"`
+      const { stdout: probeOutput } = await runCommand(
+        getFfprobeBinary(),
+        ["-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", inputPath],
+        { timeoutMs: 30_000 }
       );
 
       const probeData = JSON.parse(probeOutput);
@@ -72,8 +65,21 @@ export const extractVideoFrame = task({
 
       actualTimestamp = Math.max(0, Math.min(actualTimestamp, duration - 0.001));
 
-      await execAsync(
-        `ffmpeg -ss ${actualTimestamp} -i "${inputPath}" -vframes 1 -q:v 2 -y "${outputPath}"`
+      await runCommand(
+        getFfmpegBinary(),
+        [
+          "-ss",
+          String(actualTimestamp),
+          "-i",
+          inputPath,
+          "-vframes",
+          "1",
+          "-q:v",
+          "2",
+          "-y",
+          outputPath,
+        ],
+        { timeoutMs: 120_000 }
       );
 
       const outputBuffer = await fs.readFile(outputPath);
