@@ -24,7 +24,8 @@ interface CropOutput {
 
 export const cropImage = task({
   id: "crop-image",
-  maxDuration: 120, // 2 minutes max
+  // bump timeout to handle longer videos; backend default was only 60s
+  maxDuration: 600, // 10 minutes max
   run: async (payload: CropInput): Promise<CropOutput> => {
     const { imageUrl, x, y, width, height } = payload;
 
@@ -47,7 +48,8 @@ export const cropImage = task({
 
       // Get image dimensions using ffprobe
       const { stdout: probeOutput } = await execAsync(
-        `ffprobe -v quiet -print_format json -show_streams "${inputPath}"`
+        `ffprobe -v quiet -print_format json -show_streams "${inputPath}"`,
+        { timeout: 300_000 }
       );
       
       const probeData = JSON.parse(probeOutput);
@@ -77,7 +79,8 @@ export const cropImage = task({
 
       // Execute FFmpeg crop
       await execAsync(
-        `ffmpeg -i "${inputPath}" -vf "crop=${cropWidth}:${cropHeight}:${cropX}:${cropY}" -y "${outputPath}"`
+        `ffmpeg -i "${inputPath}" -vf "crop=${cropWidth}:${cropHeight}:${cropX}:${cropY}" -y "${outputPath}"`,
+        { timeout: 300_000 }
       );
 
       // Read the output file and convert to base64 data URL
