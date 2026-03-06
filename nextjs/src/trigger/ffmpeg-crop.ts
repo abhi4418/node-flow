@@ -24,7 +24,10 @@ interface CropOutput {
 
 export const cropImage = task({
   id: "crop-image",
-  maxDuration: 120, // 2 minutes max
+  // some large/long videos can easily take more than a minute to process,
+  // so bump the timeout well past the 60s default.  The global config also
+  // sets a high limit, but we explicitly override here to be safe.
+  maxDuration: 600, // 10 minutes max
   run: async (payload: CropInput): Promise<CropOutput> => {
     const { imageUrl, x, y, width, height } = payload;
 
@@ -44,7 +47,9 @@ export const cropImage = task({
       await fs.writeFile(inputPath, Buffer.from(arrayBuffer));
 
       const { stdout: probeOutput } = await execAsync(
-        `ffprobe -v quiet -print_format json -show_streams "${inputPath}"`
+        `ffprobe -v quiet -print_format json -show_streams "${inputPath}"`,
+        // give ffprobe a few minutes in case it's probing a very large video
+        { timeout: 300_000 }
       );
 
       const probeData = JSON.parse(probeOutput);
@@ -73,7 +78,9 @@ export const cropImage = task({
       }
 
       await execAsync(
-        `ffmpeg -i "${inputPath}" -vf "crop=${cropWidth}:${cropHeight}:${cropX}:${cropY}" -y "${outputPath}"`
+        `ffmpeg -i "${inputPath}" -vf "crop=${cropWidth}:${cropHeight}:${cropX}:${cropY}" -y "${outputPath}"`,
+        // allow the ffmpeg process plenty of time to finish
+        { timeout: 300_000 }
       );
 
       const outputBuffer = await fs.readFile(outputPath);
