@@ -4,6 +4,8 @@ export default defineConfig({
   project: "proj_your_project_id", // Replace with your Trigger.dev project ID
   runtime: "node",
   logLevel: "log",
+  // make the global max duration higher than the 60s default
+  maxDuration: 600,
   retries: {
     enabledInDev: true,
     default: {
